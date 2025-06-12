@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ورود با OTP</title>
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background-color: #f8f9fa; }
+    .container { max-width: 400px; }
+  </style>
+</head>
+<body class="d-flex justify-content-center align-items-center vh-100">
+  <div class="card p-4 w-100" style="max-width:400px;">
+    <h5 class="card-title text-center mb-4">ورود با OTP</h5>
+    <div id="alertPlaceholder"></div>
+
+    <!-- مرحله 1: شماره تلفن -->
+    <form id="phoneForm">
+      <div class="mb-3">
+        <label for="phone" class="form-label">شماره تلفن</label>
+        <input type="text" id="phone" class="form-control" placeholder="مثلاً 09121234567" required>
+        <div class="invalid-feedback">شماره معتبر وارد کنید.</div>
+      </div>
+      <button type="submit" class="btn btn-primary w-100">ارسال کد</button>
+    </form>
+
+    <!-- مرحله 2: وارد کردن OTP -->
+    <form id="otpForm" class="d-none">
+      <div class="mb-3">
+        <label for="otp" class="form-label">کد تایید</label>
+        <input type="text" id="otp" class="form-control" placeholder="۶ رقم" required>
+        <div class="invalid-feedback">کد باید ۶ رقم باشد.</div>
+      </div>
+      <button type="submit" class="btn btn-success w-100">تایید کد</button>
+    </form>
+  </div>
+
+  <!-- Bootstrap Bundle JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const apiBase   = 'http://85.198.9.71:8000';  // یا 'http://localhost:8000'  
+    const phoneForm = document.getElementById('phoneForm');
+    const otpForm   = document.getElementById('otpForm');
+    const alertEl   = document.getElementById('alertPlaceholder');
+    const phoneIn   = document.getElementById('phone');
+    const otpIn     = document.getElementById('otp');
+
+    const phonePattern = /^0?\d{10}$/;
+    const otpPattern   = /^\d{6}$/;
+    let currentPhone = '';
+
+    function showAlert(type, msg) {
+      alertEl.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+          ${msg}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>`;
+    }
+
+    // ارسال درخواست OTP
+    phoneForm.addEventListener('submit', async e => {
+      e.preventDefault();
+      alertEl.innerHTML = '';
+      phoneIn.classList.remove('is-invalid');
+      const phone = phoneIn.value.trim();
+      if (!phonePattern.test(phone)) {
+        phoneIn.classList.add('is-invalid');
+        return;
+      }
+      try {
+        const res  = await fetch(`${apiBase}/auth/request-code`, {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ phone_number: phone })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          currentPhone = phone;
+          showAlert('success', 'کد OTP ارسال شد. لطفاً آن را وارد کنید.');
+          phoneForm.classList.add('d-none');
+          otpForm.classList.remove('d-none');
+        } else {
+          phoneIn.classList.add('is-invalid');
+          phoneIn.nextElementSibling.textContent = data.error || 'خطا در ارسال کد.';
+        }
+      } catch {
+        showAlert('danger', 'ارتباط با سرور برقرار نشد.');
+      }
+    });
+
+    // تأیید OTP و هدایت بر اساس نقش
+    otpForm.addEventListener('submit', async e => {
+      e.preventDefault();
+      alertEl.innerHTML = '';
+      otpIn.classList.remove('is-invalid');
+      const code = otpIn.value.trim();
+      if (!otpPattern.test(code)) {
+        otpIn.classList.add('is-invalid');
+        return;
+      }
+      try {
+        // قدم 1: تأیید کد OTP
+        const res1 = await fetch(`${apiBase}/auth/verify-code`, {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ phone_number: currentPhone, code })
+        });
+        const data1 = await res1.json();
+        if (!res1.ok) {
+          otpIn.classList.add('is-invalid');
+          otpIn.nextElementSibling.textContent = data1.error || 'کد نامعتبر است.';
+          return;
+        }
+        // ذخیره توکن
+        sessionStorage.setItem('session_token', data1.session_token);
+
+        // قدم 2: دریافت اطلاعات کاربر و هدایت به داشبورد مناسب
+        const res2 = await fetch(`${apiBase}/me?token=${data1.session_token}`);
+        const user = await res2.json();
+        if (!res2.ok) throw new Error();
+
+        if (user.role === 'admin') {
+          window.location.href = 'admin_dashboard.html';
+        } else if (user.role === 'student') {
+          window.location.href = 'student_dashboard.html';
+        } else {
+          sessionStorage.removeItem('session_token');
+          window.location.href = 'login.html';
+        }
+      } catch {
+        sessionStorage.removeItem('session_token');
+        showAlert('danger', 'خطا در ارتباط با سرور.');
+      }
+    });
+  </script>
+</body>
+</html>
