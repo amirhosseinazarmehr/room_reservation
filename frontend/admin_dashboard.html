@@ -41,6 +41,12 @@
           <i class="bi bi-people"></i> دانشجویان
         </button>
       </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="reservations-tab" data-bs-toggle="tab"
+                data-bs-target="#reservations" type="button" role="tab">
+          <i class="bi bi-calendar-check"></i> رزروها
+        </button>
+      </li>
     </ul>
 
     <div class="tab-content" id="adminTabsContent">
@@ -68,6 +74,25 @@
               </tr>
             </thead>
             <tbody id="students-table-body">
+              <!-- JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <!-- نمایش رزروها -->
+      <div class="tab-pane fade" id="reservations" role="tabpanel">
+        <div id="reservations-alert"></div>
+        <div class="table-responsive">
+          <table class="table align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>#</th>
+                <th>دانشجو</th>
+                <th>زمان</th>
+                <th>اولویت</th>
+              </tr>
+            </thead>
+            <tbody id="reservations-table-body">
               <!-- JS -->
             </tbody>
           </table>
@@ -137,12 +162,41 @@
         })
         .catch(() => {
           showAlert('students-alert','خطا در بارگذاری دانشجویان.','danger');
+      });
+    }
+
+    // دریافت و نمایش رزروها
+    function fetchReservations() {
+      fetch(`${apiBase}/admin/reservations?token=${token}`)
+        .then(res => res.json())
+        .then(data => {
+          const tbody = document.getElementById('reservations-table-body');
+          tbody.innerHTML = '';
+          if (data.error) {
+            showAlert('reservations-alert', data.error, 'danger');
+            return;
+          }
+          data.forEach((r, i) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td>${i+1}</td>
+              <td>${r.student}</td>
+              <td>${r.reserved_at}</td>
+              <td>${r.priority}</td>`;
+            tbody.appendChild(tr);
+          });
+        })
+        .catch(() => {
+          showAlert('reservations-alert','خطا در بارگذاری رزروها.','danger');
         });
     }
 
     // وقتی تب «دانشجویان» فعال شد، لیست را بارگذاری کن
-    document.getElementById('students-tab')
-      .addEventListener('shown.bs.tab', fetchStudents);
+      document.getElementById('students-tab')
+        .addEventListener('shown.bs.tab', fetchStudents);
+
+      document.getElementById('reservations-tab')
+        .addEventListener('shown.bs.tab', fetchReservations);
 
     document.addEventListener('DOMContentLoaded', () => {
       fetchAdmin();

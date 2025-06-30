@@ -108,6 +108,44 @@ def init_routes(app):
             200,
         )
 
+    @app.route("/admin/reservations", methods=["GET"])
+    def admin_get_reservations():
+        token = request.args.get("token")
+        if not token:
+            return jsonify({"error": "Token is required"}), 400
+
+        session = SessionToken.query.filter_by(token=token).first()
+        if not session:
+            return jsonify({"error": "Invalid token"}), 401
+
+        user = User.query.get(session.user_id)
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+
+        role = Role.query.get(user.role_id)
+        if not role or role.role_name != "admin":
+            return jsonify({"error": "Forbidden: admin only"}), 403
+
+        reservations = (
+            Reservation.query.join(Student, Reservation.student_id == Student.student_id)
+            .all()
+        )
+
+        return (
+            jsonify(
+                [
+                    {
+                        "reservation_id": r.reservation_id,
+                        "student": f"{r.student.first_name} {r.student.last_name}",
+                        "reserved_at": r.reserved_at.strftime("%Y-%m-%d %H:%M"),
+                        "priority": r.priority,
+                    }
+                    for r in reservations
+                ]
+            ),
+            200,
+        )
+
     # درخواست کد OTP
     @app.route("/auth/request-code", methods=["POST"])
     def request_otp():
